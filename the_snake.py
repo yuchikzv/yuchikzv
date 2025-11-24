@@ -1,6 +1,11 @@
 from random import choice, randint
 
 import pygame
+import random
+import sys
+
+# Инициализация Pygame
+pygame.init()
 
 # Константы для размеров поля и сетки:
 SCREEN_WIDTH, SCREEN_HEIGHT = 640, 480
@@ -14,32 +19,27 @@ DOWN = (0, 1)
 LEFT = (-1, 0)
 RIGHT = (1, 0)
 
-# Цвет фона - черный:
+# Цвета
 BOARD_BACKGROUND_COLOR = (0, 0, 0)
-
-# Цвет границы ячейки
 BORDER_COLOR = (93, 216, 228)
-
-# Цвет яблока
 APPLE_COLOR = (255, 0, 0)
-
-# Цвет змейки
 SNAKE_COLOR = (0, 255, 0)
+TEXT_COLOR = (255, 255, 255)
 
-# Скорость движения змейки:
+# Скорость движения змейки
 SPEED = 20
 
-# Настройка игрового окна:
-screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), 0, 32)
-
-# Заголовок окна игрового поля:
+# Настройка игрового окна
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 pygame.display.set_caption('Змейка')
 
-# Настройка времени:
+# Настройка времени
 clock = pygame.time.Clock()
 
+# Шрифт для текста
+font = pygame.font.Font(None, 36)
 
-# Тут опишите все классы игры.
+
 class GameObject:
     """
     Базовый класс для всех игровых объектов.
@@ -59,10 +59,7 @@ class GameObject:
         self.body_color = body_color
         
     def draw(self):
-        """Абстрактный метод для отрисовки объекта.
-        
-        Должен быть переопределен в дочерних классах.
-        """
+        """Абстрактный метод для отрисовки объекта."""
         pass
 
 
@@ -82,8 +79,8 @@ class Apple(GameObject):
     def randomize_position(self):
         """Устанавливает случайную позицию для яблока в пределах игрового поля."""
         self.position = (
-            randint(0, GRID_WIDTH - 1) * GRID_SIZE,
-            randint(0, GRID_HEIGHT - 1) * GRID_SIZE
+            random.randint(0, GRID_WIDTH - 1) * GRID_SIZE,
+            random.randint(0, GRID_HEIGHT - 1) * GRID_SIZE
         )
         
     def draw(self):
@@ -103,6 +100,7 @@ class Snake(GameObject):
         next_direction (tuple): Следующее направление движения.
         length (int): Текущая длина змейки.
         last (tuple): Позиция последнего удаленного сегмента.
+        score (int): Количество собранных яблок.
     """
     
     def __init__(self):
@@ -117,6 +115,7 @@ class Snake(GameObject):
         self.direction = RIGHT
         self.next_direction = None
         self.last = None
+        self.score = 0
         
     def update_direction(self):
         """Обновляет направление движения змейки."""
@@ -165,8 +164,9 @@ class Snake(GameObject):
         return self.positions[0]
         
     def grow(self):
-        """Увеличивает длину змейки на 1."""
+        """Увеличивает длину змейки на 1 и добавляет очки."""
         self.length += 1
+        self.score += 10
         
     def check_collision(self):
         """Проверяет столкновение змейки с самой собой.
@@ -187,7 +187,7 @@ def handle_keys(game_object):
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             pygame.quit()
-            raise SystemExit
+            sys.exit()
         elif event.type == pygame.KEYDOWN:
             if event.key == pygame.K_UP and game_object.direction != DOWN:
                 game_object.next_direction = UP
@@ -197,51 +197,85 @@ def handle_keys(game_object):
                 game_object.next_direction = LEFT
             elif event.key == pygame.K_RIGHT and game_object.direction != LEFT:
                 game_object.next_direction = RIGHT
+            elif event.key == pygame.K_ESCAPE:
+                pygame.quit()
+                sys.exit()
+
+
+def draw_score(score):
+    """Отрисовывает счет на экране."""
+    score_text = font.render(f'Счет: {score}', True, TEXT_COLOR)
+    screen.blit(score_text, (10, 10))
+
+
+def draw_game_over():
+    """Отрисовывает сообщение о конце игры."""
+    game_over_text = font.render('ИГРА ОКОНЧЕНА! Нажмите R для рестарта', True, TEXT_COLOR)
+    screen.blit(game_over_text, (SCREEN_WIDTH // 2 - 200, SCREEN_HEIGHT // 2))
 
 
 def main():
     """
     Основная функция игры. Запускает и управляет игровым циклом.
     """
-    # Инициализация PyGame:
-    pygame.init()
-    
     # Создание экземпляров классов
     snake = Snake()
     apple = Apple()
     
+    game_over = False
     running = True
+    
     while running:
         # Ограничение FPS
         clock.tick(SPEED)
         
         # Обработка ввода пользователя
-        handle_keys(snake)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    running = False
+                elif event.key == pygame.K_r and game_over:
+                    # Рестарт игры
+                    snake.reset()
+                    apple.randomize_position()
+                    game_over = False
         
-        # Обновление направления змейки
-        snake.update_direction()
-        
-        # Движение змейки
-        snake.move()
-        
-        # Проверка столкновения с яблоком
-        if snake.get_head_position() == apple.position:
-            snake.grow()
-            apple.randomize_position()
-            # Убедимся, что яблоко не появляется на змейке
-            while apple.position in snake.positions:
+        if not game_over:
+            # Обработка управления
+            handle_keys(snake)
+            
+            # Обновление направления змейки
+            snake.update_direction()
+            
+            # Движение змейки
+            snake.move()
+            
+            # Проверка столкновения с яблоком
+            if snake.get_head_position() == apple.position:
+                snake.grow()
                 apple.randomize_position()
-                
-        # Проверка столкновения с самой собой
-        if snake.check_collision():
-            snake.reset()
-            apple.randomize_position()
+                # Убедимся, что яблоко не появляется на змейке
+                while apple.position in snake.positions:
+                    apple.randomize_position()
+                    
+            # Проверка столкновения с самой собой
+            if snake.check_collision():
+                game_over = True
         
         # Отрисовка игрового поля
         screen.fill(BOARD_BACKGROUND_COLOR)
         apple.draw()
         snake.draw()
+        draw_score(snake.score)
+        
+        if game_over:
+            draw_game_over()
+        
         pygame.display.update()
+    
+    pygame.quit()
 
 
 if __name__ == '__main__':
